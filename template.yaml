@@ -1,125 +1,37 @@
-name: Deploy SAM Application from Branch along with custom notification
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda to test secret access across accounts
 
-on:
-  workflow_dispatch:
+Parameters:
+  SecretAccountId:
+    Type: String
+    Description: The AWS Account ID where the secret is stored
+    Default: !Ref AWS::AccountId
+  MySecretName:
+    Type: String
+    Description: The name of the secret in Secrets Manager
 
-permissions:
-  id-token: write
-  contents: read
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: nodejs20.x
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment: ${{ github.ref_name }}
+Resources:
+  SecretTestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cross-account-secret-test-${AWS::Region}"
+      Handler: app.lambdaHandler
+      CodeUri: lambda/
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub "arn:aws:secretsmanager:${AWS::Region}:${SecretAccountId}:secret:${MySecretName}-*"
+      Environment:
+        Variables:
+          SECRET_NAME: !Ref MySecretName
+          SECRET_ACCOUNT: !Ref SecretAccountId
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        if: always()
-        
-      - name: Set up meta‐vars
-        if: always()
-        run: |
-          echo "BUILD_START=$(date +%s)" >> $GITHUB_ENV
-          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install AWS SAM CLI v1.140.0
-        run: pip install aws-sam-cli==1.140.0
-
-      - name: Load environment variables from branch file
-        run: |
-          BRANCH="${GITHUB_REF#refs/heads/}"
-          FILE=".github/envs/${BRANCH}.env"
-
-          if [ ! -f "$FILE" ]; then
-            echo "❌  Environment file $FILE not found!" && exit 1
-          fi
-
-          echo "✅ Loading environment variables from $FILE"
-          while IFS='=' read -r key value || [ -n "$key" ]; do
-            if [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-              echo "$key=$value" >> $GITHUB_ENV
-            fi
-          done < "$FILE"
-        shell: bash
-
-      - name: Inject secrets into env
-        run: |
-          BRANCH="${GITHUB_REF#refs/heads/}"
-          echo "🔒  Injecting secrets for $BRANCH"
-
-          if [ "$BRANCH" = "Production" ]; then
-            echo "AWS_DEFAULT_REGION=${{ secrets.PROD_AWS_REGION }}" >> $GITHUB_ENV
-            echo "PROD_AWS_ARN=${{ secrets.PROD_AWS_ARN }}" >> $GITHUB_ENV
-            echo "SECRET_ACCOUNT_ID=${{ secrets.PROD_SECRET_ACCOUNT_ID }}" >> $GITHUB_ENV
-            echo "SECRET_NAME=${{ secrets.PROD_SECRET_NAME }}" >> $GITHUB_ENV
-          elif [ "$BRANCH" = "Development" ]; then
-            echo "AWS_DEFAULT_REGION=${{ secrets.DEV_AWS_REGION }}" >> $GITHUB_ENV
-            echo "PROD_AWS_ARN=${{ secrets.DEV_AWS_ARN }}" >> $GITHUB_ENV
-            echo "SECRET_ACCOUNT_ID=${{ secrets.DEV_SECRET_ACCOUNT_ID }}" >> $GITHUB_ENV
-            echo "SECRET_NAME=${{ secrets.DEV_SECRET_NAME }}" >> $GITHUB_ENV
-          fi
-
-      - name: Configure AWS Credentials using OIDC
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          role-to-assume: ${{ env.PROD_AWS_ARN }}
-          aws-region: ${{ env.AWS_DEFAULT_REGION }}
-
-      - name: SAM Build
-        run: sam build
-
-      - name: SAM Package
-        run: |
-          sam package \
-            --output-template-file packaged.yaml \
-            --s3-bucket ${{ env.S3_BUCKET }} \
-            --s3-prefix ${{ env.S3_BUCKET_PREFIX }}
-
-      - name: SAM Deploy
-        run: |
-          sam deploy \
-            --template-file packaged.yaml \
-            --stack-name ${{ env.APP_NAME }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-            --region ${{ env.AWS_DEFAULT_REGION }} \
-            --no-confirm-changeset \
-            --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              SecretAccountId=${{ env.SECRET_ACCOUNT_ID }} \
-              MySecretName=${{ env.SECRET_NAME }}
-
-      - name: Calculate build duration
-        if: always()
-        run: |
-          END=$(date +%s)
-          echo "DURATION=$((END - BUILD_START))" >> $GITHUB_ENV
-
-      - name: Generate Slack payload
-        run: |
-          export STATUS="${{ job.status == 'success' && '✅ Succeeded' || job.status == 'failure' && '❌ Failed' || '⚠️ Cancelled' }}"
-          export COLOR="${{ job.status == 'success' && '#2eb886' || job.status == 'failure' && '#e01e5a' || '#daa038' }}"
-          export GITHUB_REPOSITORY="${{ github.repository }}"
-          export COMMIT_URL="${{ github.event.head_commit.url }}"
-          export AUTHOR="${{ github.event.head_commit.author.name }}"
-          export GITHUB_JOB="${{ github.job }}"
-          export GITHUB_WORKFLOW="${{ github.workflow }}"
-          export GITHUB_EVENT_NAME="${{ github.event_name }}"
-          export RUN_LOG_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          export COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
-          echo "GITHUB_REF_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
-          envsubst < .github/slack-configs/mail.template.json > slack_payload.json
-
-      - name: Send Slack notification
-        if: always()
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload-file-path: slack_payload.json
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+Outputs:
+  FunctionArn:
+    Description: Lambda ARN
+    Value: !GetAtt SecretTestFunction.Arn
