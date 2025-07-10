@@ -1,6 +1,7 @@
 name: Deploy SAM Application from Branch along with custom notification
 
 on:
+  push:
   workflow_dispatch:
 
 permissions:
