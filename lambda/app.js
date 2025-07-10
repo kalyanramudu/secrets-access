@@ -1,20 +1,26 @@
 const AWS = require("aws-sdk");
+const secretsManager = new AWS.SecretsManager();
 
 exports.lambdaHandler = async (event) => {
-  const secretName = process.env.SECRET_NAME;
-  const region = process.env.AWS_REGION;
-  const client = new AWS.SecretsManager({ region });
+  const secretName = process.env.MY_SECRET_NAME;
 
   try {
-    const data = await client.getSecretValue({ SecretId: secretName }).promise();
+    const data = await secretsManager.getSecretValue({ SecretId: secretName }).promise();
+
     return {
       statusCode: 200,
-      body: JSON.stringify({ secret: data.SecretString || "Binary secret" }),
+      body: JSON.stringify({
+        message: "✅ Successfully accessed the secret!",
+        secret: data.SecretString
+      }),
     };
   } catch (err) {
+    console.error("❌ Error fetching secret:", err.message);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: err.message }),
+      body: JSON.stringify({
+        error: err.message || "Failed to access secret"
+      }),
     };
   }
 };
