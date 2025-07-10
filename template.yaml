@@ -6,7 +6,7 @@ Parameters:
   SecretAccountId:
     Type: String
     Description: The AWS Account ID where the secret is stored
-    Default: !Ref AWS::AccountId
+    Default: 571600831534
   MySecretName:
     Type: String
     Description: The name of the secret in Secrets Manager
