@@ -1,0 +1,62 @@
+{
+  "text": ":rocket: GitHub Actions Notification — expand for details!",
+  "attachments": [
+    {
+      "color": "${COLOR}",
+      "blocks": [
+        {
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": "*${STATUS} GitHub Actions*"
+          }
+        },
+        {
+          "type": "section",
+          "fields": [
+            {
+              "type": "mrkdwn",
+              "text": "*Repo*\n<https://github.com/${GITHUB_REPOSITORY}|${GITHUB_REPOSITORY}>"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Branch*\n${GITHUB_REF_NAME}"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Commit*\n<${COMMIT_URL}|${SHORT_SHA}>"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Author*\n${AUTHOR}"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Job*\n`${GITHUB_JOB}`"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Workflow*\n`${GITHUB_WORKFLOW}`"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Event*\n`${GITHUB_EVENT_NAME}`"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Build Logs*\n<${RUN_LOG_URL}|View Logs>"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Took*\n`${DURATION} sec`"
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Message*\n${COMMIT_MESSAGE}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
