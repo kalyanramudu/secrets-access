@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda to test secret access across accounts
+
+Parameters:
+  SecretAccountId:
+    Type: String
+    Description: The AWS Account ID where the secret is stored
+    Default: !Ref AWS::AccountId
+  MySecretName:
+    Type: String
+    Description: The name of the secret in Secrets Manager
+
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: nodejs20.x
+
+Resources:
+  SecretTestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cross-account-secret-test-${AWS::Region}"
+      Handler: app.lambdaHandler
+      CodeUri: lambda/
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub "arn:aws:secretsmanager:${AWS::Region}:${SecretAccountId}:secret:${MySecretName}-*"
+      Environment:
+        Variables:
+          SECRET_NAME: !Ref MySecretName
+          SECRET_ACCOUNT: !Ref SecretAccountId
+
+Outputs:
+  FunctionArn:
+    Description: Lambda ARN
+    Value: !GetAtt SecretTestFunction.Arn
